@@ -28,43 +28,36 @@ function exportRecords(index) {
 }
 
 function exportSettings(index) {
-    const fileName = `${index.indexName}_settings.json`
-    let rules = [];
-    let synonyms = [];
+    const settingsFile = `${index.indexName}_settings.json`
 
-    if (fs.existsSync(fileName)) {
-        fs.unlinkSync(fileName);
+    if (fs.existsSync(settingsFile)) {
+        fs.unlinkSync(settingsFile);
     }
 
-    index.getSettings().then((settings) => {
-        console.log(settings);
-        fs.appendFileSync(fileName, '{');
-        fs.appendFileSync(fileName, `"settings": ${JSON.stringify(settings)},`);
-    });
+    return 
+    // return fileName;
 
-    index.browseSynonyms({
-        query: '', // Empty query will match all records
-        batch: batch => {
-            synonyms = synonyms.concat(batch);
-        }
-    }).then(() => {
-        console.log(synonyms);
-        fs.appendFileSync(fileName, `"synonyms": ${JSON.stringify(synonyms)},`);
-    });
+    // var jsonFile = fs.createWriteStream(settingsFile, {
+    //     flags: 'a' // ‘a’ means appending (old data will be preserved)
+    // })
 
-    index.browseRules({
-        query: '', // Empty query will match all records
-        batch: batch => {
-            rules = rules.concat(batch);
-        }
-    }).then(() => {
-        console.log(rules);
-        fs.appendFileSync(fileName, `"rules": ${JSON.stringify(rules)}`);
-        fs.appendFileSync(fileName, '}');
-        fs.end();
-    });
+    // indexSettings.settings = await index.getSettings();
+    // await index .browseSynonyms({
+    //     batch: synonyms => {
+    //         indexSettings.synonyms = synonyms;
+    //     }
+    // });
 
-    return fileName;
+    // await index.browseRules({
+    //     batch: rules => {
+    //         indexSettings.rules = rules
+    //     }
+    // });
+
+    // jsonFile.write(JSON.stringify(indexSettings));
+    // jsonFile.end()
+
+    // return settingsFile
 }
 
 app.post('/', bodyParser, (req, res) => {
@@ -76,14 +69,55 @@ app.post('/', bodyParser, (req, res) => {
     // API key needs listIndices, browse, getSettings, searchRules...
     const client = algoliasearch(appId, adminKey);
     const index = client.initIndex(indexName);
-    const recordsFile = exportRecords(index);
-    const settingsFile  = exportSettings(index);
-    const files = [
-        { path: recordsFile, name: recordsFile },
-        { path: settingsFile, name: settingsFile },
-    ] 
 
-    res.zip(files);
+    const recordsFile = exportRecords(index);
+    const settingsFile = `${index.indexName}_settings.json`
+
+    let synonyms = [];
+    let rules = [];
+    let indexSettings = {
+        settings: '',
+        rules: '',
+        synonyms: ''
+    }
+
+    index.getSettings().then((settings) => {
+        indexSettings.settings = settings;
+
+        index.browseSynonyms({
+            query: '', // Empty query will match all records
+            batch: batch => {
+                synonyms = synonyms.concat(batch);
+            }
+        }).then(() => {
+            indexSettings.synonyms = synonyms;
+
+            index.browseRules({
+                query: '', // Empty query will match all records
+                batch: batch => {
+                    rules = rules.concat(batch);
+                }
+            }).then(() => {
+                indexSettings.rules = rules;
+                fs.appendFileSync(settingsFile, JSON.stringify(indexSettings));
+
+                const files = [
+                    { path: recordsFile, name: recordsFile },
+                    { path: settingsFile, name: settingsFile },
+                ]
+
+                res.zip(files)
+            });
+        });
+    });
+
+    
+
+    // console.log('test', settingsFile);
+
+    // res.download(settingsFile);
+
+    // res.zip(files);
 })
 
 app.listen(port, () => {
